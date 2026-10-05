@@ -21,6 +21,7 @@
 
 #include <cpu/functions.h>
 #include <cpu/impl/interface.h>
+#include <mem/functions.h>
 
 #include <memory>
 
