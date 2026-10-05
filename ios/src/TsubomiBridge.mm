@@ -201,6 +201,7 @@ NSString *trophy_grade_name(int grade) {
     _vSync = core.v_sync;
     _shaderCache = core.shader_cache;
     _cpuOptimizations = core.cpu_opt;
+    _forceSoftwarePageTable = core.force_software_page_table;
     _ngsAudio = core.ngs_enable;
     _asyncPipelineCompilation = core.async_pipeline_compilation;
     _anisotropicFiltering = core.anisotropic_filtering;
@@ -231,6 +232,7 @@ NSString *trophy_grade_name(int grade) {
     core.shader_cache = self.shaderCache;
     core.fps_limit = 60; // iOS always requests 60; the limiter UI was removed.
     core.cpu_opt = self.cpuOptimizations;
+    core.force_software_page_table = self.forceSoftwarePageTable;
     core.ngs_enable = self.ngsAudio;
     core.async_pipeline_compilation = self.asyncPipelineCompilation;
     core.anisotropic_filtering = static_cast<int>(self.anisotropicFiltering);

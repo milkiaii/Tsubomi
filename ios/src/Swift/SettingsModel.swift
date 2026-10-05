@@ -27,6 +27,7 @@ final class SettingsModel {
     var vSync: Bool
     var shaderCache: Bool
     var cpuOptimizations: Bool
+    var forceSoftwarePageTable: Bool
     var ngsAudio: Bool
     var asyncPipelineCompilation: Bool
     var anisotropicFiltering: Int
@@ -64,6 +65,7 @@ final class SettingsModel {
         vSync = settings.vSync
         shaderCache = settings.shaderCache
         cpuOptimizations = settings.cpuOptimizations
+        forceSoftwarePageTable = settings.forceSoftwarePageTable
         ngsAudio = settings.ngsAudio
         asyncPipelineCompilation = settings.asyncPipelineCompilation
         anisotropicFiltering = settings.anisotropicFiltering
@@ -98,6 +100,7 @@ final class SettingsModel {
         settings.vSync = vSync
         settings.shaderCache = shaderCache
         settings.cpuOptimizations = cpuOptimizations
+        settings.forceSoftwarePageTable = forceSoftwarePageTable
         settings.ngsAudio = ngsAudio
         settings.asyncPipelineCompilation = asyncPipelineCompilation
         settings.anisotropicFiltering = anisotropicFiltering

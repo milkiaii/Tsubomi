@@ -25,6 +25,7 @@ NS_SWIFT_NAME(EmulatorSettings)
 @property(nonatomic) BOOL vSync;
 @property(nonatomic) BOOL shaderCache;
 @property(nonatomic) BOOL cpuOptimizations;
+@property(nonatomic) BOOL forceSoftwarePageTable;
 @property(nonatomic) BOOL ngsAudio;
 @property(nonatomic) BOOL asyncPipelineCompilation;
 @property(nonatomic) NSInteger anisotropicFiltering;

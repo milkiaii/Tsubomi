@@ -57,6 +57,7 @@ struct Vita3KIOSSettings {
     bool shader_cache = true;
     int fps_limit = 60;
     bool cpu_opt = true;
+    bool force_software_page_table = false;
     bool ngs_enable = true;
     bool async_pipeline_compilation = true;
     int anisotropic_filtering = 1;

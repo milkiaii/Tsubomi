@@ -703,6 +703,7 @@ Vita3KIOSSettings native_settings(EmuEnvState &emuenv) {
         .shader_cache = current.shader_cache,
         .fps_limit = 60,
         .cpu_opt = current.cpu_opt,
+        .force_software_page_table = current.force_software_page_table,
         .ngs_enable = current.ngs_enable,
         .async_pipeline_compilation = current.async_pipeline_compilation,
         .anisotropic_filtering = current.anisotropic_filtering,
@@ -2208,6 +2209,8 @@ std::string restart_setting_name(config::RestartRequiredSetting setting) {
     switch (setting) {
     case config::RestartRequiredSetting::CpuOpt:
         return "CPU optimisation";
+    case config::RestartRequiredSetting::MemoryMode:
+        return "memory mode";
     case config::RestartRequiredSetting::ResolutionMultiplier:
         return "resolution multiplier";
     case config::RestartRequiredSetting::AudioBackend:
@@ -2239,6 +2242,7 @@ void apply_native_settings(EmuEnvState &emuenv, const Vita3KIOSSettings &setting
         // changes guest timing. Clear any value persisted by an older build.
         current.fps_hack = false;
         current.cpu_opt = settings.cpu_opt;
+        current.force_software_page_table = settings.force_software_page_table;
         current.ngs_enable = settings.ngs_enable;
         current.async_pipeline_compilation = settings.async_pipeline_compilation;
         current.anisotropic_filtering = settings.anisotropic_filtering;
@@ -2252,6 +2256,7 @@ void apply_native_settings(EmuEnvState &emuenv, const Vita3KIOSSettings &setting
     desired.v_sync = settings.v_sync;
     desired.fps_hack = false;
     desired.cpu_opt = settings.cpu_opt;
+    desired.force_software_page_table = settings.force_software_page_table;
     desired.ngs_enable = settings.ngs_enable;
     desired.async_pipeline_compilation = settings.async_pipeline_compilation;
     desired.anisotropic_filtering = settings.anisotropic_filtering;

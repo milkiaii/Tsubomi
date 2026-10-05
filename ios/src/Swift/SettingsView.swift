@@ -48,6 +48,7 @@ struct SettingsView: View {
                 videoSection
                 graphicsSection
                 audioSection
+                cpuSection
                 if !model.isPerGame {
                     controlsSection
                     performanceOverlaySection
@@ -208,11 +209,22 @@ struct SettingsView: View {
         Section {
             Toggle("NGS audio", isOn: $model.ngsAudio)
             LabeledContent("Audio backend", value: "SDL")
-            Toggle("CPU optimizations", isOn: $model.cpuOptimizations)
         } header: {
-            Text("Audio & CPU")
+            Text("Audio")
         } footer: {
             Text("NGS is full Vita audio emulation; disable it only while diagnosing a problem.")
+        }
+    }
+
+    private var cpuSection: some View {
+        Section("CPU") {
+            Toggle("CPU optimizations", isOn: $model.cpuOptimizations)
+            if !model.isPerGame {
+                Toggle("Force software page table", isOn: $model.forceSoftwarePageTable)
+                    .accessibilityHint("Use the page-table memory path for the next game launch, even if the 4 GiB guest reservation succeeds.")
+            }
+        } footer: {
+            Text("The page-table mode is selected automatically if the 4 GiB guest reservation fails. Forcing it may reduce performance and takes effect when the next game initializes memory.")
         }
     }
 
