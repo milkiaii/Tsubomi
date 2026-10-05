@@ -39,6 +39,12 @@ typedef std::unique_ptr<AllocMemPage[]> AllocPageTable;
 typedef std::unique_ptr<PagePtr[]> PageTable;
 typedef std::map<int, std::string> PageNameMap;
 
+struct BackingRegion {
+    Address guest_address = 0;
+    uint32_t size = 0;
+    uint8_t *host_address = nullptr;
+};
+
 struct ProtectBlockInfo {
     uint32_t size = 0;
     ProtectCallback callback;
@@ -76,7 +82,9 @@ struct MemState {
     PageNameMap page_name_map;
 
     bool use_page_table = false;
+    MemoryMode memory_mode = MemoryMode::Fastmem;
     PageTable page_table;
+    std::map<uint32_t, BackingRegion> backing_regions;
     std::map<uint64_t, MemExternalMapping, std::greater<>> external_mapping;
 
     // Diagnostic: guest access-violation traps handled by the protect system.

@@ -60,6 +60,7 @@ struct Config {
      */
     struct CurrentConfig {
         bool cpu_opt = true;
+        bool force_software_page_table = false;
         int modules_mode = ModulesMode::AUTOMATIC;
         std::vector<std::string> lle_modules = {};
         std::string audio_backend = "SDL";

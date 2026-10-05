@@ -44,6 +44,7 @@ class DynarmicCPU : public CPUInterface {
     bool log_mem = false;
     bool log_code = false;
     bool cpu_opt;
+    MemoryMode jit_memory_mode = MemoryMode::Fastmem;
 
     // Architectural state kept while `jit` is released (dormant thread or
     // not-yet-started thread). Accessors read/write this instead of the jit

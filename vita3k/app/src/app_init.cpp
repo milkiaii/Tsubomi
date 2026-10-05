@@ -575,7 +575,7 @@ bool late_init(EmuEnvState &state) {
     state.renderer->late_init(state.cfg, state.app_path, state.mem);
 
     const bool need_page_table = state.renderer->mapping_method == MappingMethod::PageTable || state.renderer->mapping_method == MappingMethod::NativeBuffer;
-    if (!init(state.mem, need_page_table)) {
+    if (!init(state.mem, need_page_table, state.cfg.current_config.force_software_page_table)) {
         LOG_ERROR("Failed to initialize memory for emulator state!");
         return false;
     }

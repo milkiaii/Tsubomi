@@ -42,6 +42,7 @@ public:
     QString modules_auto_manual;
     QString modules_manual;
     QString cpu_opt;
+    QString force_software_page_table;
     QString backend_renderer;
     QString renderer_accuracy;
     QString vsync;

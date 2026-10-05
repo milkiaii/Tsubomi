@@ -26,6 +26,8 @@ QString restart_required_setting_label(config::RestartRequiredSetting setting) {
     switch (setting) {
     case config::RestartRequiredSetting::CpuOpt:
         return QCoreApplication::translate("SettingsDialogTooltips", "Enable CPU Optimizations");
+    case config::RestartRequiredSetting::MemoryMode:
+        return QCoreApplication::translate("SettingsDialogTooltips", "Force Software Page Table");
     case config::RestartRequiredSetting::BackendRenderer:
         return QCoreApplication::translate("SettingsDialogTooltips", "Backend Renderer");
     case config::RestartRequiredSetting::GraphicsDevice:
@@ -106,6 +108,7 @@ SettingsDialogTooltips::SettingsDialogTooltips(QObject *parent)
     , modules_auto_manual(tr("Select this mode to load modules automatically in addition to selected modules from the list on the right."))
     , modules_manual(tr("Only load the modules selected from the list. Advanced users only."))
     , cpu_opt(tr("Enable Dynarmic JIT optimizations. Improves performance."))
+    , force_software_page_table(tr("Avoid the 4 GiB guest-memory reservation and use Dynarmic's software page table. Requires a restart."))
     , backend_renderer(tr("Select the preferred backend renderer. Vulkan is recommended for most systems."))
     , renderer_accuracy(tr("Set the renderer accuracy level for Vulkan. High accuracy may improve visuals but reduce performance."))
     , vsync(tr("Enable V-Sync for OpenGL. Reduces screen tearing."))

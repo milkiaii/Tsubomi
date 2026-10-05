@@ -207,7 +207,9 @@ public:
     template <typename T>
     T MemoryRead(Dynarmic::A32::VAddr addr) {
         Ptr<T> ptr{ addr };
-        if (!ptr || !ptr.valid(*parent->mem) || ptr.address() < parent->mem->host_page_size) {
+        T ret{};
+        if (!ptr || ptr.address() < parent->mem->host_page_size
+            || !read_guest_memory(*parent->mem, addr, &ret, sizeof(ret))) {
             LOG_ERROR("Invalid read of uint{}_t at address: 0x{:x}\n{}", sizeof(T) * 8, addr, this->cpu->save_context().description());
 
             auto pc = this->cpu->get_pc();
@@ -218,7 +220,6 @@ public:
             return 0;
         }
 
-        T ret = *ptr.get(*parent->mem);
         if (cpu->log_mem) {
             LOG_TRACE("Read uint{}_t at address: 0x{:x}, val = 0x{:x}", sizeof(T) * 8, addr, ret);
         }
@@ -244,7 +245,8 @@ public:
     template <typename T>
     void MemoryWrite(Dynarmic::A32::VAddr addr, T value) {
         Ptr<T> ptr{ addr };
-        if (!ptr || !ptr.valid(*parent->mem) || ptr.address() < parent->mem->host_page_size) {
+        if (!ptr || ptr.address() < parent->mem->host_page_size
+            || !write_guest_memory(*parent->mem, addr, &value, sizeof(value))) {
             LOG_ERROR("Invalid write of uint{}_t at addr: 0x{:x}, val = 0x{:x}\n{}", sizeof(T) * 8, addr, value, this->cpu->save_context().description());
 
             auto pc = this->cpu->get_pc();
@@ -255,7 +257,6 @@ public:
             return;
         }
 
-        *ptr.get(*parent->mem) = value;
         if (cpu->log_mem) {
             LOG_TRACE("Write uint{}_t at addr: 0x{:x}, val = 0x{:x}", sizeof(T) * 8, addr, value);
         }
@@ -280,7 +281,8 @@ public:
     template <typename T>
     bool MemoryWriteExclusive(Dynarmic::A32::VAddr addr, T value, T expected) {
         Ptr<T> ptr{ addr };
-        if (!ptr || !ptr.valid(*parent->mem) || ptr.address() < parent->mem->host_page_size) {
+        if (!ptr || !ptr.valid(*parent->mem) || ptr.address() < parent->mem->host_page_size
+            || (addr % alignof(T)) != 0 || (addr % KiB(4)) + sizeof(T) > KiB(4)) {
             LOG_ERROR("Invalid exclusive write of uint{}_t at addr: 0x{:x}, val = 0x{:x}, expected = 0x{:x}\n{}", sizeof(T) * 8, addr, value, expected, this->cpu->save_context().description());
 
             auto pc = this->cpu->get_pc();
@@ -378,6 +380,7 @@ public:
 Dynarmic::ExclusiveMonitor DynarmicCPU::shared_monitor(MAX_CORE_COUNT);
 
 std::unique_ptr<Dynarmic::A32::Jit> DynarmicCPU::make_jit() {
+    const MemoryMode memory_mode = parent->mem->memory_mode;
     Dynarmic::A32::UserConfig config{};
 #if defined(VITA3K_PLATFORM_IOS)
     // Vita3K owns one Dynarmic JIT per guest thread. On iOS 26+, each cache
@@ -390,7 +393,12 @@ std::unique_ptr<Dynarmic::A32::Jit> DynarmicCPU::make_jit() {
 #endif
     config.arch_version = Dynarmic::A32::ArchVersion::v7;
     config.callbacks = cb.get();
-    if (parent->mem->use_page_table) {
+    if (memory_mode == MemoryMode::SoftwarePageTable) {
+        config.page_table = (log_mem || !cpu_opt) ? nullptr : reinterpret_cast<decltype(config.page_table)>(parent->mem->page_table.get());
+        config.absolute_offset_page_table = true;
+        config.detect_misaligned_access_via_page_table = 8 | 16 | 32 | 64;
+        config.only_detect_misalignment_via_page_table_on_page_boundary = false;
+    } else if (parent->mem->use_page_table) {
         config.page_table = (log_mem || !cpu_opt) ? nullptr : reinterpret_cast<decltype(config.page_table)>(parent->mem->page_table.get());
         config.absolute_offset_page_table = true;
     } else if (!log_mem && cpu_opt) {
@@ -415,12 +423,15 @@ std::unique_ptr<Dynarmic::A32::Jit> DynarmicCPU::make_jit() {
         allocation_id, parent->thread_id, core_id, config.code_cache_size,
         config.code_cache_size / (1024 * 1024));
     auto jit = std::make_unique<Dynarmic::A32::Jit>(config);
+    jit_memory_mode = memory_mode;
     LOG_INFO("iOS Dynarmic JIT cache #{} ready: thread={} core={} size={} bytes ({} MiB)",
         allocation_id, parent->thread_id, core_id, config.code_cache_size,
         config.code_cache_size / (1024 * 1024));
     return jit;
 #else
-    return std::make_unique<Dynarmic::A32::Jit>(config);
+    auto jit = std::make_unique<Dynarmic::A32::Jit>(config);
+    jit_memory_mode = memory_mode;
+    return jit;
 #endif
 }
 
@@ -443,6 +454,8 @@ DynarmicCPU::DynarmicCPU(CPUState *state, std::size_t processor_id, bool cpu_opt
 DynarmicCPU::~DynarmicCPU() = default;
 
 void DynarmicCPU::ensure_jit() {
+    if (jit && jit_memory_mode != parent->mem->memory_mode)
+        release_code_cache();
     if (jit)
         return;
     jit = make_jit();

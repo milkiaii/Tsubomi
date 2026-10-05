@@ -26,6 +26,11 @@ struct MemState;
 
 typedef std::function<bool(uint8_t *addr, bool write)> AccessViolationHandler;
 
+enum class MemoryMode : uint8_t {
+    Fastmem,
+    SoftwarePageTable,
+};
+
 constexpr Address user_main_memory_start = 0x80000000U;
 
 // Permission when protecting a memory range
@@ -47,10 +52,14 @@ constexpr MemPerm most_restrictive_perm(MemPerm a, MemPerm b) {
     return MemPerm::ReadWrite;
 }
 
-bool init(MemState &state, const bool use_page_table);
+bool init(MemState &state, const bool use_page_table, const bool force_software_page_table = false);
 // Reserve the guest address range ahead of time (before other large mappings
 // can fragment the address space); the next init() adopts the reservation.
-bool prereserve_guest_memory();
+bool prereserve_guest_memory(const bool force_software_page_table = false);
+uint8_t *guest_memory_pointer(const MemState &state, Address address);
+Address guest_memory_address(const MemState &state, const uint8_t *pointer);
+bool read_guest_memory(const MemState &state, Address address, void *destination, size_t size);
+bool write_guest_memory(MemState &state, Address address, const void *source, size_t size);
 void deinit_mem(MemState &state);
 Address alloc(MemState &state, uint32_t size, const char *name, Address start_addr = user_main_memory_start);
 Address alloc_aligned(MemState &state, uint32_t size, const char *name, unsigned int alignment, Address start_addr = user_main_memory_start);

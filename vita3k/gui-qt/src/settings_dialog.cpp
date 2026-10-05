@@ -288,6 +288,7 @@ void SettingsDialog::load_config() {
     populate_modules_list();
 
     m_ui->cpu_opt->setChecked(m_config.cpu_opt);
+    m_ui->force_software_page_table->setChecked(m_config.force_software_page_table);
 
     m_ui->backend_renderer_box->clear();
 #ifndef __APPLE__
@@ -608,6 +609,7 @@ void SettingsDialog::build_desired_config(Config &desired) const {
     }
 
     current.cpu_opt = m_ui->cpu_opt->isChecked();
+    current.force_software_page_table = m_ui->force_software_page_table->isChecked();
     current.backend_renderer = m_ui->backend_renderer_box->currentText().toStdString();
     current.high_accuracy = m_ui->renderer_accuracy_box->currentIndex() == 1;
     current.v_sync = m_ui->vsync->isChecked();
@@ -1193,6 +1195,7 @@ void SettingsDialog::setup_connections() {
         { m_ui->rb_modules_manual, tr("Manual"), m_tooltips->modules_manual },
         // CPU
         { m_ui->cpu_opt, tr("Enable CPU Optimizations"), m_tooltips->cpu_opt },
+        { m_ui->force_software_page_table, tr("Force Software Page Table"), m_tooltips->force_software_page_table },
         // Graphics
         { m_ui->backend_renderer_box, tr("Backend Renderer"), m_tooltips->backend_renderer },
         { m_ui->renderer_accuracy_box, tr("Rendering Accuracy"), m_tooltips->renderer_accuracy },

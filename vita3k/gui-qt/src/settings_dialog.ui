@@ -411,6 +411,13 @@ QGroupBox[flat=&quot;true&quot;]::title {
                      </property>
                     </widget>
                    </item>
+                   <item>
+                    <widget class="QCheckBox" name="force_software_page_table">
+                     <property name="text">
+                      <string>Force Software Page Table</string>
+                     </property>
+                    </widget>
+                   </item>
                   </layout>
                  </widget>
                 </item>

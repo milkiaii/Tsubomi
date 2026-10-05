@@ -2744,7 +2744,7 @@ int main(int argc, char *argv[]) {
     // region pool immediately while StikDebug is still attached. StikDebug
     // commonly detaches within a minute of app launch; new RWX regions cannot
     // be created after that, which used to make any delayed first boot fail.
-    if (!prereserve_guest_memory()) {
+    if (!prereserve_guest_memory(emuenv->cfg.force_software_page_table)) {
         LOG_CRITICAL("Could not prereserve guest memory at startup; JIT pool prewarm deferred to first boot");
     } else if (initial_jit_available) {
         if (prepare_ios_jit_pool())

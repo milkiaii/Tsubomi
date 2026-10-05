@@ -41,7 +41,7 @@ public:
         if (pointer_bytes == 0) {
             addr = 0;
         } else {
-            addr = static_cast<Address>(pointer_bytes - &mem.memory[0]);
+            addr = guest_memory_address(mem, pointer_bytes);
         }
     }
 
@@ -57,19 +57,15 @@ public:
     T *get(const MemState &mem) const {
         if (addr == 0) {
             return nullptr;
-        } else if (mem.use_page_table) {
-            return reinterpret_cast<T *>(mem.page_table[addr / KiB(4)] + addr);
-        } else {
-            return reinterpret_cast<T *>(&mem.memory[addr]);
         }
+        return reinterpret_cast<T *>(guest_memory_pointer(mem, addr));
     }
 
     template <class U>
     bool atomic_compare_and_swap(MemState &mem, U value, U expected) {
         static_assert(std::is_arithmetic_v<U>);
         static_assert(std::is_same_v<U, T>);
-        uint8_t *mem_ptr = mem.use_page_table ? mem.page_table[addr / KiB(4)] : mem.memory.get();
-        const auto ptr = reinterpret_cast<volatile U *>(&mem_ptr[addr]);
+        const auto ptr = reinterpret_cast<volatile U *>(guest_memory_pointer(mem, addr));
         return ::atomic_compare_and_swap(ptr, value, expected);
     }
 
