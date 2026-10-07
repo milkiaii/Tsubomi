@@ -339,6 +339,7 @@ void PipelineCache::read_pipeline_cache() {
 
     state.device.destroyPipelineCache(pipeline_cache);
     pipeline_cache = state.device.createPipelineCache(cache_info);
+    pipeline_cache_payload_bytes.store(pipeline_size, std::memory_order_relaxed);
     LOG_INFO("Pipeline cache read and loaded");
 }
 
@@ -353,6 +354,7 @@ void PipelineCache::save_pipeline_cache() {
     renderer::save_shaders_cache_hashs(state, shader_cache_copy);
 
     const std::vector<uint8_t> pipeline_data = state.device.getPipelineCacheData(pipeline_cache);
+    pipeline_cache_payload_bytes.store(pipeline_data.size(), std::memory_order_relaxed);
     if (pipeline_data.empty())
         // No pipeline was created
         return;
@@ -434,6 +436,8 @@ void PipelineCache::cleanup() {
 
     state.device.destroy(pipeline_cache);
     pipeline_cache = nullptr;
+    pipeline_cache_payload_bytes.store(0, std::memory_order_relaxed);
+    live_shader_module_source_bytes.store(0, std::memory_order_relaxed);
 
     next_pipeline_cache_save = std::numeric_limits<uint64_t>::max();
     nb_worker_threads = 0;
@@ -523,6 +527,7 @@ vk::PipelineShaderStageCreateInfo PipelineCache::retrieve_shader(const SceGxmPro
     };
 
     *shader_module = state.device.createShaderModule(shader_info);
+    live_shader_module_source_bytes.fetch_add(sizeof(uint32_t) * source.size(), std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> guard(shaders_mutex);
         // Save shader cache hashes
@@ -1048,6 +1053,7 @@ vk::ShaderModule PipelineCache::precompile_shader(const Sha256Hash &hash, bool s
     };
 
     vk::ShaderModule shader = state.device.createShaderModule(shader_info);
+    live_shader_module_source_bytes.fetch_add(sizeof(uint32_t) * source.size(), std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> guard(shaders_mutex);
         shaders[hash] = shader;

@@ -27,7 +27,37 @@
 namespace vkutil {
 
 static vma::Allocator allocator = nullptr;
-static std::atomic_uint64_t live_buffer_allocation_bytes{ 0 };
+static std::atomic_uint64_t live_vertex_buffer_bytes{ 0 };
+static std::atomic_uint64_t live_index_buffer_bytes{ 0 };
+static std::atomic_uint64_t live_uniform_buffer_bytes{ 0 };
+static std::atomic_uint64_t live_staging_buffer_bytes{ 0 };
+static std::atomic_uint64_t live_other_buffer_bytes{ 0 };
+static std::atomic_uint64_t live_image_count{ 0 };
+static std::atomic_uint64_t live_image_bytes{ 0 };
+
+static std::atomic_uint64_t &buffer_bytes(BufferAllocationCategory category) {
+    switch (category) {
+    case BufferAllocationCategory::Vertex:
+        return live_vertex_buffer_bytes;
+    case BufferAllocationCategory::Index:
+        return live_index_buffer_bytes;
+    case BufferAllocationCategory::Uniform:
+        return live_uniform_buffer_bytes;
+    case BufferAllocationCategory::Staging:
+        return live_staging_buffer_bytes;
+    default:
+        return live_other_buffer_bytes;
+    }
+}
+
+static void remove_buffer_allocation(std::uint64_t size, BufferAllocationCategory category) {
+    buffer_bytes(category).fetch_sub(size, std::memory_order_relaxed);
+}
+
+static void remove_image_allocation(std::uint64_t size) {
+    live_image_bytes.fetch_sub(size, std::memory_order_relaxed);
+    live_image_count.fetch_sub(1, std::memory_order_relaxed);
+}
 
 void init(vma::Allocator vma_allocator) {
     allocator = vma_allocator;
@@ -37,8 +67,21 @@ void deinit() {
     allocator = nullptr;
 }
 
-std::uint64_t buffer_allocation_bytes() {
-    return live_buffer_allocation_bytes.load(std::memory_order_relaxed);
+BufferAllocationStats buffer_allocation_stats() {
+    return {
+        .vertex_bytes = live_vertex_buffer_bytes.load(std::memory_order_relaxed),
+        .index_bytes = live_index_buffer_bytes.load(std::memory_order_relaxed),
+        .uniform_bytes = live_uniform_buffer_bytes.load(std::memory_order_relaxed),
+        .staging_bytes = live_staging_buffer_bytes.load(std::memory_order_relaxed),
+        .other_bytes = live_other_buffer_bytes.load(std::memory_order_relaxed),
+    };
+}
+
+ImageAllocationStats image_allocation_stats() {
+    return {
+        .count = live_image_count.load(std::memory_order_relaxed),
+        .bytes = live_image_bytes.load(std::memory_order_relaxed),
+    };
 }
 
 Image::Image() = default;
@@ -49,6 +92,7 @@ Image::Image(Image &&other) noexcept {
     other.view = nullptr;
     other.image = nullptr;
     other.layout = ImageLayout::Undefined;
+    other.allocation_size = 0;
 }
 Image &Image::operator=(Image &&other) noexcept {
     memcpy(this, &other, sizeof(Image));
@@ -56,6 +100,7 @@ Image &Image::operator=(Image &&other) noexcept {
     other.view = nullptr;
     other.image = nullptr;
     other.layout = ImageLayout::Undefined;
+    other.allocation_size = 0;
     return *this;
 }
 
@@ -81,7 +126,15 @@ void Image::destroy() {
     if (image) {
         allocator.destroyImage(image, allocation);
         image = nullptr;
+        remove_image_allocation(allocation_size);
+        allocation_size = 0;
     }
+}
+
+void Image::track_allocation_size(vk::DeviceSize size) {
+    allocation_size = size;
+    live_image_count.fetch_add(1, std::memory_order_relaxed);
+    live_image_bytes.fetch_add(size, std::memory_order_relaxed);
 }
 
 Image::~Image() {
@@ -107,7 +160,9 @@ void Image::init_image(vk::ImageUsageFlags usage, vk::ComponentMapping mapping, 
         .initialLayout = vk::ImageLayout::eUndefined,
     };
 
-    std::tie(image, allocation) = allocator.createImage(image_info, vma_auto_alloc);
+    vma::AllocationInfo allocation_info;
+    std::tie(image, allocation) = allocator.createImage(image_info, vma_auto_alloc, allocation_info);
+    track_allocation_size(allocation_info.size);
 
     // only create a view if one of these flags is set
     constexpr vk::ImageUsageFlags view_usages = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eStorage;
@@ -151,6 +206,7 @@ Buffer::Buffer(Buffer &&other) noexcept {
     other.buffer = nullptr;
     other.size = 0;
     other.allocation_size = 0;
+    other.allocation_category = BufferAllocationCategory::Other;
     other.mapped_data = nullptr;
 }
 Buffer &Buffer::operator=(Buffer &&other) noexcept {
@@ -159,6 +215,7 @@ Buffer &Buffer::operator=(Buffer &&other) noexcept {
     other.buffer = nullptr;
     other.size = 0;
     other.allocation_size = 0;
+    other.allocation_category = BufferAllocationCategory::Other;
     other.mapped_data = nullptr;
     return *this;
 }
@@ -174,8 +231,9 @@ void Buffer::destroy() {
     if (buffer) {
         allocator.destroyBuffer(buffer, allocation);
         buffer = nullptr;
-        live_buffer_allocation_bytes.fetch_sub(allocation_size, std::memory_order_relaxed);
+        remove_buffer_allocation(allocation_size, allocation_category);
         allocation_size = 0;
+        allocation_category = BufferAllocationCategory::Other;
     }
 }
 
@@ -183,7 +241,8 @@ Buffer::~Buffer() {
     destroy();
 }
 
-void Buffer::init_buffer(vk::BufferUsageFlags usage_flags, const vma::AllocationCreateInfo &alloc_create_info) {
+void Buffer::init_buffer(vk::BufferUsageFlags usage_flags, const vma::AllocationCreateInfo &alloc_create_info,
+    BufferAllocationCategory category) {
     vk::BufferCreateInfo buffer_info{
         .size = size,
         .usage = usage_flags,
@@ -192,7 +251,18 @@ void Buffer::init_buffer(vk::BufferUsageFlags usage_flags, const vma::Allocation
     vma::AllocationInfo alloc_info;
     std::tie(buffer, allocation) = allocator.createBuffer(buffer_info, alloc_create_info, alloc_info);
     allocation_size = alloc_info.size;
-    live_buffer_allocation_bytes.fetch_add(allocation_size, std::memory_order_relaxed);
+    if (category == BufferAllocationCategory::Automatic) {
+        if (usage_flags & vk::BufferUsageFlagBits::eVertexBuffer)
+            category = BufferAllocationCategory::Vertex;
+        else if (usage_flags & vk::BufferUsageFlagBits::eIndexBuffer)
+            category = BufferAllocationCategory::Index;
+        else if (usage_flags & (vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eStorageBuffer))
+            category = BufferAllocationCategory::Uniform;
+        else
+            category = BufferAllocationCategory::Other;
+    }
+    allocation_category = category;
+    buffer_bytes(allocation_category).fetch_add(allocation_size, std::memory_order_relaxed);
     mapped_data = alloc_info.pMappedData;
 }
 
@@ -270,6 +340,8 @@ void DestroyQueue::add_image(Image &image) {
         add(image.image);
         image.image = nullptr;
         destroy_list.push_back(std::bit_cast<uint64_t>(image.allocation));
+        destroy_list.push_back(image.allocation_size);
+        image.allocation_size = 0;
     }
 }
 
@@ -278,6 +350,10 @@ void DestroyQueue::add_buffer(Buffer &buffer) {
         add(buffer.buffer);
         buffer.buffer = nullptr;
         destroy_list.push_back(std::bit_cast<uint64_t>(buffer.allocation));
+        destroy_list.push_back(buffer.allocation_size);
+        destroy_list.push_back(static_cast<uint64_t>(buffer.allocation_category));
+        buffer.allocation_size = 0;
+        buffer.allocation_category = BufferAllocationCategory::Other;
     }
 }
 
@@ -308,7 +384,9 @@ void DestroyQueue::destroy_objects() {
             // special case: this is a vma allocation
             auto image = std::bit_cast<vk::Image>(el);
             auto allocation = std::bit_cast<vma::Allocation>(destroy_list[idx++]);
+            const std::uint64_t allocation_size = destroy_list[idx++];
             allocator.destroyImage(image, allocation);
+            remove_image_allocation(allocation_size);
             break;
         }
 
@@ -316,7 +394,10 @@ void DestroyQueue::destroy_objects() {
             // special case: this is a vma allocation
             auto buffer = std::bit_cast<vk::Buffer>(el);
             auto allocation = std::bit_cast<vma::Allocation>(destroy_list[idx++]);
+            const std::uint64_t allocation_size = destroy_list[idx++];
+            const auto category = static_cast<BufferAllocationCategory>(destroy_list[idx++]);
             allocator.destroyBuffer(buffer, allocation);
+            remove_buffer_allocation(allocation_size, category);
             break;
         }
 

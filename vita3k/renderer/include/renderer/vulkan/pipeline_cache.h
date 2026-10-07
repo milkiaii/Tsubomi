@@ -22,6 +22,7 @@
 #include <vkutil/vkutil.h>
 
 #include <array>
+#include <atomic>
 #include <limits>
 #include <map>
 #include <set>
@@ -90,6 +91,8 @@ private:
     // because of multithreading, we want the pointers to remain stable
     unordered_map_stable<Sha256Hash, vk::ShaderModule> shaders;
     unordered_map_stable<uint64_t, vk::Pipeline> pipelines;
+    std::atomic_uint64_t live_shader_module_source_bytes{ 0 };
+    std::atomic_uint64_t pipeline_cache_payload_bytes{ 0 };
 
     vk::PipelineShaderStageCreateInfo retrieve_shader(const SceGxmProgram *program, const Sha256Hash &hash, bool is_vertex, bool maskupdate, MemState &mem, const shader::Hints &hints, bool is_srgb = false);
     vk::PipelineVertexInputStateCreateInfo get_vertex_input_state(const SceGxmVertexProgram &vertex_program, MemState &mem);
@@ -135,6 +138,14 @@ public:
     vk::ShaderModule precompile_shader(const Sha256Hash &hash, bool search_first = true);
 
     void set_async_compilation(bool enable);
+
+    std::uint64_t shader_module_source_bytes() const {
+        return live_shader_module_source_bytes.load(std::memory_order_relaxed);
+    }
+
+    std::uint64_t serialized_pipeline_cache_payload_bytes() const {
+        return pipeline_cache_payload_bytes.load(std::memory_order_relaxed);
+    }
 };
 } // namespace vulkan
 } // namespace renderer

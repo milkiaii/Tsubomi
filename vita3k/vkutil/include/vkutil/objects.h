@@ -24,9 +24,36 @@
 
 namespace vkutil {
 
+enum class BufferAllocationCategory : std::uint8_t {
+    Automatic,
+    Vertex,
+    Index,
+    Uniform,
+    Staging,
+    Other,
+};
+
+struct BufferAllocationStats {
+    std::uint64_t vertex_bytes = 0;
+    std::uint64_t index_bytes = 0;
+    std::uint64_t uniform_bytes = 0;
+    std::uint64_t staging_bytes = 0;
+    std::uint64_t other_bytes = 0;
+
+    std::uint64_t total_bytes() const {
+        return vertex_bytes + index_bytes + uniform_bytes + staging_bytes + other_bytes;
+    }
+};
+
+struct ImageAllocationStats {
+    std::uint64_t count = 0;
+    std::uint64_t bytes = 0;
+};
+
 void init(vma::Allocator vma_allocator);
 void deinit();
-std::uint64_t buffer_allocation_bytes();
+BufferAllocationStats buffer_allocation_stats();
+ImageAllocationStats image_allocation_stats();
 
 struct Image {
     vma::Allocation allocation;
@@ -38,6 +65,7 @@ struct Image {
     uint32_t height;
     vk::Format format;
     ImageLayout layout = ImageLayout::Undefined;
+    vk::DeviceSize allocation_size = 0;
 
     // should the existing image, view, sampler be destroyed when this image is destroyed?
     bool destroy_on_deletion = true;
@@ -57,6 +85,7 @@ struct Image {
     void init_image(vk::ImageUsageFlags usage, vk::ComponentMapping mapping = default_comp_mapping, const vk::ImageCreateFlags image_create_flags = vk::ImageCreateFlags(), const void *pNext = nullptr);
     // called by ~Image
     void destroy();
+    void track_allocation_size(vk::DeviceSize size);
 
     void transition_to(vk::CommandBuffer buffer, ImageLayout new_layout, const vk::ImageSubresourceRange &range = color_subresource_range);
     // use this when you don't care about the former content of the image
@@ -69,6 +98,7 @@ struct Buffer {
 
     vk::DeviceSize size = 0;
     vk::DeviceSize allocation_size = 0;
+    BufferAllocationCategory allocation_category = BufferAllocationCategory::Other;
     // only useful is buffer is host visible
     void *mapped_data = nullptr;
 
@@ -86,7 +116,8 @@ struct Buffer {
     Buffer(const Buffer &) = delete;
     Buffer &operator=(Buffer const &) = delete;
 
-    void init_buffer(vk::BufferUsageFlags usage_flags, const vma::AllocationCreateInfo &alloc_create_info = vma_auto_alloc);
+    void init_buffer(vk::BufferUsageFlags usage_flags, const vma::AllocationCreateInfo &alloc_create_info = vma_auto_alloc,
+        BufferAllocationCategory category = BufferAllocationCategory::Automatic);
     // called by ~Image
     void destroy();
 };

@@ -247,7 +247,8 @@ void VKTextureCache::prepare_staging_buffer(bool is_configure) {
             staging_buffer->buffer.destroy();
 
             staging_buffer->buffer.size = current_texture->memory_needed;
-            staging_buffer->buffer.init_buffer(vk::BufferUsageFlagBits::eTransferSrc, vkutil::vma_mapped_alloc);
+            staging_buffer->buffer.init_buffer(vk::BufferUsageFlagBits::eTransferSrc,
+                vkutil::vma_mapped_alloc, vkutil::BufferAllocationCategory::Staging);
         }
     }
 
@@ -427,7 +428,9 @@ void VKTextureCache::configure_texture(const SceGxmTexture &gxm_texture) {
         .initialLayout = vk::ImageLayout::eUndefined,
     };
 
-    std::tie(image.image, image.allocation) = state.allocator.createImage(image_info, vkutil::vma_auto_alloc);
+    vma::AllocationInfo allocation_info;
+    std::tie(image.image, image.allocation) = state.allocator.createImage(image_info, vkutil::vma_auto_alloc, allocation_info);
+    image.track_allocation_size(allocation_info.size);
 
     // create image view
     vk::ImageSubresourceRange range{
@@ -649,7 +652,9 @@ void VKTextureCache::import_configure_impl(SceGxmTextureBaseFormat base_format, 
         .initialLayout = vk::ImageLayout::eUndefined,
     };
 
-    std::tie(image.image, image.allocation) = state.allocator.createImage(image_info, vkutil::vma_auto_alloc);
+    vma::AllocationInfo allocation_info;
+    std::tie(image.image, image.allocation) = state.allocator.createImage(image_info, vkutil::vma_auto_alloc, allocation_info);
+    image.track_allocation_size(allocation_info.size);
 
     // create image view
     vk::ImageSubresourceRange range{

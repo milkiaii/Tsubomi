@@ -145,9 +145,11 @@ bool OverlayRenderer::init(VKState &state) {
             .initialLayout = vk::ImageLayout::eUndefined,
         };
         vma::AllocationCreateInfo alloc_create = vkutil::vma_auto_alloc;
-        auto [image, allocation] = m_state->allocator.createImage(array_img_info, alloc_create);
+        vma::AllocationInfo allocation_info;
+        auto [image, allocation] = m_state->allocator.createImage(array_img_info, alloc_create, allocation_info);
         m_dummy_texture_array.image = image;
         m_dummy_texture_array.allocation = allocation;
+        m_dummy_texture_array.track_allocation_size(allocation_info.size);
         m_dummy_texture_array.width = 1;
         m_dummy_texture_array.height = 1;
         m_dummy_texture_array.format = vk::Format::eR8G8B8A8Unorm;
@@ -483,9 +485,11 @@ vk::ImageView OverlayRenderer::upload_font(vk::CommandBuffer cmd, const overlay:
     };
 
     vma::AllocationCreateInfo alloc_create = vkutil::vma_auto_alloc;
-    auto [image, allocation] = m_state->allocator.createImage(image_info, alloc_create);
+    vma::AllocationInfo allocation_info;
+    auto [image, allocation] = m_state->allocator.createImage(image_info, alloc_create, allocation_info);
     entry.image.image = image;
     entry.image.allocation = allocation;
+    entry.image.track_allocation_size(allocation_info.size);
     entry.image.width = dims.width;
     entry.image.height = dims.height;
     entry.image.format = vk::Format::eR8Unorm;
@@ -594,9 +598,11 @@ void OverlayRenderer::upload_image(vk::CommandBuffer cmd, const overlay::image_i
         };
 
         vma::AllocationCreateInfo alloc_create = vkutil::vma_auto_alloc;
-        auto [image, allocation] = m_state->allocator.createImage(image_info, alloc_create);
+        vma::AllocationInfo allocation_info;
+        auto [image, allocation] = m_state->allocator.createImage(image_info, alloc_create, allocation_info);
         dst.image = image;
         dst.allocation = allocation;
+        dst.track_allocation_size(allocation_info.size);
         dst.width = w;
         dst.height = h;
         dst.format = fmt;

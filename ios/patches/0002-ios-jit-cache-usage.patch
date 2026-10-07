@@ -1,0 +1,114 @@
+diff --git a/src/dynarmic/backend/arm64/a32_interface.cpp b/src/dynarmic/backend/arm64/a32_interface.cpp
+index 6b38c410..9a6dda68 100644
+--- a/src/dynarmic/backend/arm64/a32_interface.cpp
++++ b/src/dynarmic/backend/arm64/a32_interface.cpp
+@@ -172,6 +172,12 @@ HaltReason Jit::Run() {
+     return impl->Run();
+ }
+ 
++#if defined(__aarch64__)
++std::size_t Jit::GetTotalCodeCacheUsedSize() {
++    return AddressSpace::TotalCodeCacheUsedSize();
++}
++#endif
++
+ HaltReason Jit::Step() {
+     return impl->Step();
+ }
+diff --git a/src/dynarmic/backend/arm64/address_space.cpp b/src/dynarmic/backend/arm64/address_space.cpp
+index 2c7ae777..a884d840 100644
+--- a/src/dynarmic/backend/arm64/address_space.cpp
++++ b/src/dynarmic/backend/arm64/address_space.cpp
+@@ -33,7 +33,22 @@ AddressSpace::AddressSpace(size_t code_cache_size)
+     });
+ }
+ 
+-AddressSpace::~AddressSpace() = default;
++AddressSpace::~AddressSpace() {
++    total_code_cache_used.fetch_sub(accounted_code_cache_used.load(std::memory_order_relaxed), std::memory_order_relaxed);
++}
++
++size_t AddressSpace::TotalCodeCacheUsedSize() {
++    return total_code_cache_used.load(std::memory_order_relaxed);
++}
++
++void AddressSpace::UpdateCodeCacheUsed() {
++    const size_t used = static_cast<size_t>(code.offset() - prelude_info.end_of_prelude);
++    const size_t previous = accounted_code_cache_used.exchange(used, std::memory_order_relaxed);
++    if (used > previous)
++        total_code_cache_used.fetch_add(used - previous, std::memory_order_relaxed);
++    else
++        total_code_cache_used.fetch_sub(previous - used, std::memory_order_relaxed);
++}
+ 
+ CodePtr AddressSpace::Get(IR::LocationDescriptor descriptor) {
+     if (const auto iter = block_entries.find(descriptor); iter != block_entries.end()) {
+@@ -95,6 +110,7 @@ void AddressSpace::ClearCache() {
+     block_infos.clear();
+     block_references.clear();
+     code.set_offset(prelude_info.end_of_prelude);
++    UpdateCodeCacheUsed();
+ }
+ 
+ void AddressSpace::DumpDisassembly() const {
+@@ -127,6 +143,7 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
+     ProtectCodeMemory();
+ 
+     RegisterNewBasicBlock(block, block_info);
++    UpdateCodeCacheUsed();
+ 
+     return block_info;
+ }
+diff --git a/src/dynarmic/backend/arm64/address_space.h b/src/dynarmic/backend/arm64/address_space.h
+index 835566bd..74e92b58 100644
+--- a/src/dynarmic/backend/arm64/address_space.h
++++ b/src/dynarmic/backend/arm64/address_space.h
+@@ -5,6 +5,7 @@
+ 
+ #pragma once
+ 
++#include <atomic>
+ #include <map>
+ #include <optional>
+ 
+@@ -45,6 +46,8 @@ public:
+ 
+     void DumpDisassembly() const;
+ 
++    static size_t TotalCodeCacheUsedSize();
++
+ protected:
+     virtual EmitConfig GetEmitConfig() = 0;
+     virtual void RegisterNewBasicBlock(const IR::Block& block, const EmittedBlockInfo& block_info) = 0;
+@@ -62,6 +65,7 @@ protected:
+     }
+ 
+     size_t GetRemainingSize();
++    void UpdateCodeCacheUsed();
+     EmittedBlockInfo Emit(IR::Block ir_block);
+     void Link(EmittedBlockInfo& block);
+     void LinkBlockLinks(const CodePtr entry_point, const CodePtr target_ptr, const std::vector<BlockRelocation>& block_relocations_list);
+@@ -70,6 +74,8 @@ protected:
+     FakeCall FastmemCallback(u64 host_pc);
+ 
+     const size_t code_cache_size;
++    static inline std::atomic_size_t total_code_cache_used{ 0 };
++    std::atomic_size_t accounted_code_cache_used{ 0 };
+     oaknut::CodeBlock mem;
+     oaknut::CodeGenerator code;
+ 
+diff --git a/src/dynarmic/interface/A32/a32.h b/src/dynarmic/interface/A32/a32.h
+index e1c5b40f..eca151c5 100644
+--- a/src/dynarmic/interface/A32/a32.h
++++ b/src/dynarmic/interface/A32/a32.h
+@@ -40,6 +40,10 @@ public:
+      */
+     void ClearCache();
+ 
++#if defined(__aarch64__)
++    static std::size_t GetTotalCodeCacheUsedSize();
++#endif
++
+     /**
+      * Invalidate the code cache at a range of addresses.
+      * @param start_address The starting address of the range to invalidate.
