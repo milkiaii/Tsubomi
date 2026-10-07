@@ -26,8 +26,9 @@ struct PerformanceHUDPanel: View {
 
                 Section {
                     DefaultsToggle("Live log", key: .perfLog, onEnable: unhide)
+                    DefaultsToggle("Log memory snapshots", key: .memoryLogging)
                 } footer: {
-                    Text("Keeps the last few hundred log lines on screen. Useful when capturing a bug report.")
+                    Text("The live log keeps recent lines on screen. Memory snapshots are written to tsubomi.log at game startup and about every 30 seconds.")
                 }
             }
             .navigationTitle("Performance Overlay")

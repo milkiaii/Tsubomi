@@ -54,6 +54,7 @@
 #include <touch/state.h>
 #include <util/fs.h>
 #include <util/log.h>
+#include <vkutil/objects.h>
 
 #include <miniz.h>
 
@@ -75,6 +76,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <condition_variable>
 #include <deque>
 #include <filesystem>
 #include <fstream>
@@ -122,6 +124,7 @@ std::string g_current_title_id;
 // config on disk is never touched by it.
 std::optional<Vita3KIOSSettings> g_pending_game_settings;
 std::atomic_bool g_jit_pool_ready{ false };
+std::atomic_size_t g_jit_pool_regions{ 0 };
 std::atomic_bool g_unhandled_universal_jit_breakpoint{ false };
 
 bool safe_identifier(std::string_view value, const std::size_t maximum = 32) {
@@ -2660,6 +2663,7 @@ bool prepare_ios_jit_pool() {
     try {
         const std::size_t warmed_jit_regions =
             prewarm_ios_jit_code_cache_pool(IOS_JIT_POOL_TARGET, IOS_JIT_CACHE_SIZE);
+        g_jit_pool_regions.store(warmed_jit_regions, std::memory_order_relaxed);
         if (warmed_jit_regions < IOS_JIT_POOL_TARGET) {
             LOG_CRITICAL("iOS JIT region pool is under target: target={} available={}",
                 IOS_JIT_POOL_TARGET, warmed_jit_regions);
@@ -2679,6 +2683,40 @@ bool prepare_ios_jit_pool() {
     vita3k_ios_set_jit_available(true);
     return true;
 #endif
+}
+
+void log_ios_memory_snapshot(EmuEnvState &emuenv, const char *sample) {
+    constexpr std::size_t guest_page_size = 4 * 1024;
+    constexpr std::size_t guest_page_count = (std::size_t{ 1 } << 32) / guest_page_size;
+    const std::uint64_t footprint_bytes = vita3k_ios_process_footprint_bytes();
+    const std::uint64_t available_bytes = os_proc_available_memory();
+    const std::uint64_t page_table_bytes = emuenv.mem.page_table
+        ? guest_page_count * sizeof(PagePtr)
+        : 0;
+    const std::uint64_t allocator_table_bytes = emuenv.mem.alloc_table
+        ? guest_page_count * sizeof(AllocMemPage)
+        : 0;
+    std::uint64_t guest_backing_bytes = 0;
+    bool guest_backing_measured = false;
+    {
+        const std::lock_guard generation_lock(emuenv.mem.generation_mutex);
+        if (emuenv.mem.memory_mode == MemoryMode::SoftwarePageTable) {
+            const std::lock_guard protect_lock(emuenv.mem.protect_mutex);
+            for (const auto &[_, region] : emuenv.mem.backing_regions)
+                guest_backing_bytes += region.size;
+            guest_backing_measured = true;
+        }
+    }
+
+    const std::size_t jit_pool_regions = g_jit_pool_regions.load(std::memory_order_relaxed);
+    const std::uint64_t jit_pool_capacity = jit_pool_regions * IOS_JIT_CACHE_SIZE;
+    LOG_INFO("iOS memory snapshot [{}]: footprint={} bytes available={} bytes guest_ram_backing={}{} page_table={} bytes ({}) allocator_table={} bytes (up-front) jit_cache_used=unavailable jit_cache_capacity_per_instance={} bytes jit_pool_regions={} pool_capacity={} bytes shader_cache_bytes=unavailable pipeline_cache_bytes=unavailable gpu_vkutil_buffer_bytes={} gpu_texture_bytes=unavailable gpu_staging_bytes=unavailable (not split from buffer total) page_table_slow_path_time=unavailable cpu_run_time=unavailable",
+        sample, footprint_bytes ? std::to_string(footprint_bytes) : "unavailable",
+        available_bytes, guest_backing_measured ? std::to_string(guest_backing_bytes) : "unavailable",
+        guest_backing_measured ? " bytes (lazy)" : " (fastmem not tracked)",
+        page_table_bytes, page_table_bytes ? "up-front" : "not allocated",
+        allocator_table_bytes, IOS_JIT_CACHE_SIZE, jit_pool_regions, jit_pool_capacity,
+        vkutil::buffer_allocation_bytes());
 }
 
 } // namespace
@@ -2937,6 +2975,24 @@ int main(int argc, char *argv[]) {
         }
     });
 
+    std::atomic_bool stop_memory_logger = false;
+    std::mutex memory_logger_mutex;
+    std::condition_variable memory_logger_cv;
+    std::thread memory_logger([&] {
+        bool first_snapshot = true;
+        while (!stop_memory_logger.load(std::memory_order_relaxed)) {
+            if (vita3k_ios_memory_logging_enabled()) {
+                log_ios_memory_snapshot(*emuenv, first_snapshot ? "startup" : "periodic");
+                first_snapshot = false;
+            }
+
+            std::unique_lock lock(memory_logger_mutex);
+            memory_logger_cv.wait_for(lock, std::chrono::seconds(30), [&] {
+                return stop_memory_logger.load(std::memory_order_relaxed);
+            });
+        }
+    });
+
     Uint64 perf_last_ms = SDL_GetTicks();
     std::size_t perf_last_frame_count = emuenv->frame_count;
     Uint64 playtime_checkpoint_ms = perf_last_ms;
@@ -3076,6 +3132,11 @@ int main(int argc, char *argv[]) {
     LOG_INFO("Shutting down game");
     stop_guest_watchdog.store(true, std::memory_order_relaxed);
     guest_watchdog.join();
+    stop_memory_logger.store(true, std::memory_order_relaxed);
+    memory_logger_cv.notify_all();
+    memory_logger.join();
+    if (auto logger = spdlog::default_logger())
+        logger->flush();
     vita3k_ios_hide_perf_overlay();
     vita3k_ios_hide_virtual_controller();
     session_controller.stop(app_terminating

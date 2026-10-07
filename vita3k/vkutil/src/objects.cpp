@@ -22,9 +22,12 @@
 #include <util/align.h>
 #include <util/log.h>
 
+#include <atomic>
+
 namespace vkutil {
 
 static vma::Allocator allocator = nullptr;
+static std::atomic_uint64_t live_buffer_allocation_bytes{ 0 };
 
 void init(vma::Allocator vma_allocator) {
     allocator = vma_allocator;
@@ -32,6 +35,10 @@ void init(vma::Allocator vma_allocator) {
 
 void deinit() {
     allocator = nullptr;
+}
+
+std::uint64_t buffer_allocation_bytes() {
+    return live_buffer_allocation_bytes.load(std::memory_order_relaxed);
 }
 
 Image::Image() = default;
@@ -143,6 +150,7 @@ Buffer::Buffer(Buffer &&other) noexcept {
     other.allocation = nullptr;
     other.buffer = nullptr;
     other.size = 0;
+    other.allocation_size = 0;
     other.mapped_data = nullptr;
 }
 Buffer &Buffer::operator=(Buffer &&other) noexcept {
@@ -150,6 +158,7 @@ Buffer &Buffer::operator=(Buffer &&other) noexcept {
     other.allocation = nullptr;
     other.buffer = nullptr;
     other.size = 0;
+    other.allocation_size = 0;
     other.mapped_data = nullptr;
     return *this;
 }
@@ -165,6 +174,8 @@ void Buffer::destroy() {
     if (buffer) {
         allocator.destroyBuffer(buffer, allocation);
         buffer = nullptr;
+        live_buffer_allocation_bytes.fetch_sub(allocation_size, std::memory_order_relaxed);
+        allocation_size = 0;
     }
 }
 
@@ -180,6 +191,8 @@ void Buffer::init_buffer(vk::BufferUsageFlags usage_flags, const vma::Allocation
     };
     vma::AllocationInfo alloc_info;
     std::tie(buffer, allocation) = allocator.createBuffer(buffer_info, alloc_create_info, alloc_info);
+    allocation_size = alloc_info.size;
+    live_buffer_allocation_bytes.fetch_add(allocation_size, std::memory_order_relaxed);
     mapped_data = alloc_info.pMappedData;
 }
 

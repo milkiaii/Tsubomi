@@ -191,6 +191,8 @@ void vita3k_ios_apply_orientation_lock();
 // HUD only appears when the user enabled at least one metric in settings.
 void vita3k_ios_update_perf_overlay(float guest_fps, float frametime_ms);
 void vita3k_ios_hide_perf_overlay();
+bool vita3k_ios_memory_logging_enabled();
+std::uint64_t vita3k_ios_process_footprint_bytes();
 
 // Dismisses the import-in-progress overlay and shows the outcome. Failures are
 // surfaced as a dismissible alert (so the precise installer detail is readable)

@@ -20,11 +20,13 @@
 #include <vkutil/vkutil.h>
 
 #include <bit>
+#include <cstdint>
 
 namespace vkutil {
 
 void init(vma::Allocator vma_allocator);
 void deinit();
+std::uint64_t buffer_allocation_bytes();
 
 struct Image {
     vma::Allocation allocation;
@@ -66,6 +68,7 @@ struct Buffer {
     vk::Buffer buffer;
 
     vk::DeviceSize size = 0;
+    vk::DeviceSize allocation_size = 0;
     // only useful is buffer is host visible
     void *mapped_data = nullptr;
 

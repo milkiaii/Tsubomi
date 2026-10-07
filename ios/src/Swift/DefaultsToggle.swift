@@ -13,6 +13,7 @@ enum DefaultsKey: String {
     case perfRAM = "vita3k.perf.ram"
     case perfBattery = "vita3k.perf.battery"
     case perfLog = "vita3k.perf.log"
+    case memoryLogging = "tsubomi.memoryLogging"
 
     case showTitleIDs = "tsubomi.showTitleIds"
     case showVersion = "tsubomi.showVersion"
@@ -40,7 +41,7 @@ enum DefaultsKey: String {
         case .compactList:
             // The roomier list is the default; compact is opt-in.
             return false
-        case .perfFPS, .perfFrametime, .perfFrametimeGraph, .perfRAM, .perfBattery, .perfLog:
+        case .perfFPS, .perfFrametime, .perfFrametimeGraph, .perfRAM, .perfBattery, .perfLog, .memoryLogging:
             // The in-game overlay stays off until the user asks for a metric.
             return false
         }

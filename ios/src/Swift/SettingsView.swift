@@ -254,10 +254,11 @@ struct SettingsView: View {
             DefaultsToggle("Show RAM usage", key: .perfRAM, onEnable: enablePerfOverlay)
             DefaultsToggle("Show battery %", key: .perfBattery, onEnable: enablePerfOverlay)
             DefaultsToggle("Show live log", key: .perfLog, onEnable: enablePerfOverlay)
+            DefaultsToggle("Log memory snapshots", key: .memoryLogging)
         } header: {
             Text("Performance overlay")
         } footer: {
-            Text("The overlay appears in-game once any metric is enabled. The live log keeps the last ~250 lines, which is useful when reporting a bug.")
+            Text("The overlay appears in-game once any metric is enabled. The live log keeps recent lines on screen. Memory snapshots are written to tsubomi.log at game startup and about every 30 seconds.")
         }
     }
 

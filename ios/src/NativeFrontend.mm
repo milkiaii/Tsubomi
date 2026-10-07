@@ -1734,6 +1734,19 @@ void vita3k_ios_hide_perf_overlay() {
     });
 }
 
+bool vita3k_ios_memory_logging_enabled() {
+    return [NSUserDefaults.standardUserDefaults boolForKey:@"tsubomi.memoryLogging"];
+}
+
+std::uint64_t vita3k_ios_process_footprint_bytes() {
+    task_vm_info_data_t vm_info{};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO,
+            reinterpret_cast<task_info_t>(&vm_info), &count) != KERN_SUCCESS)
+        return 0;
+    return vm_info.phys_footprint;
+}
+
 void vita3k_ios_report_import_result(const std::string &message, const bool success,
     const bool needs_attention) {
     NSString *text = [NSString stringWithUTF8String:message.c_str()] ?: @"Import finished";
