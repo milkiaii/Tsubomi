@@ -217,12 +217,14 @@ struct SettingsView: View {
     }
 
     private var cpuSection: some View {
-        Section("CPU") {
+        Section {
             Toggle("CPU optimizations", isOn: $model.cpuOptimizations)
             if !model.isPerGame {
                 Toggle("Force software page table", isOn: $model.forceSoftwarePageTable)
                     .accessibilityHint("Use the page-table memory path for the next game launch, even if the 4 GiB guest reservation succeeds.")
             }
+        } header: {
+            Text("CPU")
         } footer: {
             Text("The page-table mode is selected automatically if the 4 GiB guest reservation fails. Forcing it may reduce performance and takes effect when the next game initializes memory.")
         }
