@@ -104,5 +104,9 @@ public:
     std::size_t processor_id() const override;
     void invalidate_jit_cache(Address start, size_t length) override;
 
+#if defined(VITA3K_PLATFORM_IOS) && defined(__aarch64__)
+    std::size_t get_jit_code_cache_used_bytes() const override;
+#endif
+
     static Dynarmic::ExclusiveMonitor shared_monitor;
 };

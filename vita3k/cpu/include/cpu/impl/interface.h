@@ -82,4 +82,10 @@ struct CPUInterface {
     virtual std::size_t processor_id() const {
         return 0;
     }
+
+    // arm64 iOS only: returns total JIT code cache bytes currently used across all threads.
+    // Returns 0 on other platforms or if JIT is not initialized.
+    virtual std::size_t get_jit_code_cache_used_bytes() const {
+        return 0;
+    }
 };

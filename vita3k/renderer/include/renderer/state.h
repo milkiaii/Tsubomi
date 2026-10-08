@@ -232,6 +232,18 @@ struct State {
     virtual void precompile_shader(const ShadersHash &hash) = 0;
     virtual void preclose_action() = 0;
 
+    // Memory statistics for diagnostic logging (iOS memory snapshot)
+    virtual uint64_t get_buffer_vertex_bytes() const { return 0; }
+    virtual uint64_t get_buffer_index_bytes() const { return 0; }
+    virtual uint64_t get_buffer_uniform_bytes() const { return 0; }
+    virtual uint64_t get_buffer_staging_bytes() const { return 0; }
+    virtual uint64_t get_buffer_other_bytes() const { return 0; }
+    virtual uint64_t get_buffer_total_bytes() const { return 0; }
+    virtual uint64_t get_image_count() const { return 0; }
+    virtual uint64_t get_image_bytes() const { return 0; }
+    virtual uint64_t get_shader_module_source_bytes() const { return 0; }
+    virtual uint64_t get_pipeline_cache_payload_bytes() const { return 0; }
+
     virtual ~State() = default;
 
     fs::path texture_folder() const {

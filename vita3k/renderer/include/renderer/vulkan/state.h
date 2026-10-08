@@ -189,6 +189,18 @@ struct VKState : public renderer::State {
     void precompile_shader(const ShadersHash &hash) override;
     void preclose_action() override;
 
+    // Memory statistics for diagnostic logging (iOS memory snapshot)
+    uint64_t get_buffer_vertex_bytes() const override;
+    uint64_t get_buffer_index_bytes() const override;
+    uint64_t get_buffer_uniform_bytes() const override;
+    uint64_t get_buffer_staging_bytes() const override;
+    uint64_t get_buffer_other_bytes() const override;
+    uint64_t get_buffer_total_bytes() const override;
+    uint64_t get_image_count() const override;
+    uint64_t get_image_bytes() const override;
+    uint64_t get_shader_module_source_bytes() const override;
+    uint64_t get_pipeline_cache_payload_bytes() const override;
+
     inline FrameObject &frame() {
         return frames[current_frame_idx];
     }

@@ -74,6 +74,10 @@ std::size_t prewarm_ios_jit_code_cache_pool(std::size_t target_count, std::size_
         target_count, available, cache_size);
     return available;
 }
+
+std::size_t get_ios_jit_code_cache_used_bytes() {
+    return Dynarmic::A32::Jit::GetTotalCodeCacheUsedSize();
+}
 #endif
 
 class ArmDynarmicCP15 : public Dynarmic::A32::Coprocessor {
@@ -693,6 +697,14 @@ void DynarmicCPU::invalidate_jit_cache(Address start, size_t length) {
         return;
     jit->InvalidateCacheRange(start, length);
 }
+
+#if defined(VITA3K_PLATFORM_IOS) && defined(__aarch64__)
+std::size_t DynarmicCPU::get_jit_code_cache_used_bytes() const {
+    if (!jit)
+        return 0;
+    return jit->GetTotalCodeCacheUsedSize();
+}
+#endif
 
 void DynarmicCPU::clear_exclusive() {
     shared_monitor.ClearProcessor(core_id);
