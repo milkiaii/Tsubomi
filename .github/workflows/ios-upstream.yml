@@ -65,7 +65,8 @@ jobs:
           # dynarmic/oaknut is a nested submodule; CI restores its pinned
           # commit, so iOS-specific fixes live as patches applied here.
           git -C external/dynarmic apply --verbose \
-            "${GITHUB_WORKSPACE}/ios/patches/0001-oaknut-ios-rwx-jit.patch"
+            "${GITHUB_WORKSPACE}/ios/patches/0001-oaknut-ios-rwx-jit.patch" \
+            "${GITHUB_WORKSPACE}/ios/patches/0002-ios-jit-cache-usage.patch"
           git -C external/dynarmic diff --check
           git -C external/dynarmic diff --name-only | grep -Fx \
             "externals/oaknut/include/oaknut/code_block.hpp"
@@ -73,6 +74,10 @@ jobs:
             "src/dynarmic/backend/arm64/address_space.cpp"
           git -C external/dynarmic diff --name-only | grep -Fx \
             "src/dynarmic/common/spin_lock_arm64.cpp"
+          git -C external/dynarmic diff --name-only | grep -Fx \
+            "src/dynarmic/backend/arm64/a32_interface.cpp"
+          git -C external/dynarmic diff --name-only | grep -Fx \
+            "src/dynarmic/interface/A32/a32.h"
 
       - name: Show Apple toolchain
         run: |

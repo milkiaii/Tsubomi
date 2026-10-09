@@ -1835,6 +1835,47 @@ void VKState::preclose_action() {
     pipeline_cache.save_pipeline_cache();
 }
 
+// Memory statistics for diagnostic logging (iOS memory snapshot)
+uint64_t VKState::get_buffer_vertex_bytes() const {
+    return vkutil::buffer_allocation_stats().vertex_bytes;
+}
+
+uint64_t VKState::get_buffer_index_bytes() const {
+    return vkutil::buffer_allocation_stats().index_bytes;
+}
+
+uint64_t VKState::get_buffer_uniform_bytes() const {
+    return vkutil::buffer_allocation_stats().uniform_bytes;
+}
+
+uint64_t VKState::get_buffer_staging_bytes() const {
+    return vkutil::buffer_allocation_stats().staging_bytes;
+}
+
+uint64_t VKState::get_buffer_other_bytes() const {
+    return vkutil::buffer_allocation_stats().other_bytes;
+}
+
+uint64_t VKState::get_buffer_total_bytes() const {
+    return vkutil::buffer_allocation_stats().total_bytes();
+}
+
+uint64_t VKState::get_image_count() const {
+    return vkutil::image_allocation_stats().count;
+}
+
+uint64_t VKState::get_image_bytes() const {
+    return vkutil::image_allocation_stats().bytes;
+}
+
+uint64_t VKState::get_shader_module_source_bytes() const {
+    return pipeline_cache.shader_module_source_bytes();
+}
+
+uint64_t VKState::get_pipeline_cache_payload_bytes() const {
+    return pipeline_cache.serialized_pipeline_cache_payload_bytes();
+}
+
 #ifdef __ANDROID__
 bool VKState::support_custom_drivers() {
     // vendor ID 0x5143 is Qualcomm, being stock or turnip

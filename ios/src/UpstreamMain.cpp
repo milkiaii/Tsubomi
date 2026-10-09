@@ -2643,7 +2643,21 @@ constexpr std::size_t IOS_JIT_CACHE_SIZE = 16 * 1024 * 1024;
 // Gravity Rush runs ~24 concurrently-live guest threads; exited-but-undeleted
 // threads now release their region when they park dormant, but keep headroom
 // for thread churn (audio/savedata workers) on top of the live set.
-constexpr std::size_t IOS_JIT_POOL_TARGET = 32;
+constexpr std::size_t IOS_JIT_POOL_TARGET_DEFAULT = 32;
+
+static std::size_t get_ios_jit_pool_target() {
+    const char *env = std::getenv("VITA3K_IOS_JIT_POOL_TARGET");
+    if (env) {
+        try {
+            const std::size_t value = std::stoull(env);
+            if (value > 0)
+                return value;
+        } catch (...) {
+            // Ignore invalid values, use default
+        }
+    }
+    return IOS_JIT_POOL_TARGET_DEFAULT;
+}
 
 bool prepare_ios_jit_pool() {
     if (g_jit_pool_ready.load(std::memory_order_relaxed))
@@ -2659,14 +2673,15 @@ bool prepare_ios_jit_pool() {
     if (!ios_debugger_attached())
         return false;
 
+    const std::size_t jit_pool_target = get_ios_jit_pool_target();
     g_unhandled_universal_jit_breakpoint.store(false, std::memory_order_relaxed);
     try {
         const std::size_t warmed_jit_regions =
-            prewarm_ios_jit_code_cache_pool(IOS_JIT_POOL_TARGET, IOS_JIT_CACHE_SIZE);
+            prewarm_ios_jit_code_cache_pool(jit_pool_target, IOS_JIT_CACHE_SIZE);
         g_jit_pool_regions.store(warmed_jit_regions, std::memory_order_relaxed);
-        if (warmed_jit_regions < IOS_JIT_POOL_TARGET) {
+        if (warmed_jit_regions < jit_pool_target) {
             LOG_CRITICAL("iOS JIT region pool is under target: target={} available={}",
-                IOS_JIT_POOL_TARGET, warmed_jit_regions);
+                jit_pool_target, warmed_jit_regions);
             if (auto logger = spdlog::default_logger())
                 logger->flush();
             return false;
@@ -2708,15 +2723,38 @@ void log_ios_memory_snapshot(EmuEnvState &emuenv, const char *sample) {
         }
     }
 
+    // JIT code cache usage (from Dynarmic on arm64 iOS)
+    std::uint64_t jit_code_cache_used = 0;
+#if defined(VITA3K_PLATFORM_IOS) && defined(__aarch64__)
+    jit_code_cache_used = get_ios_jit_code_cache_used_bytes();
+#endif
+
     const std::size_t jit_pool_regions = g_jit_pool_regions.load(std::memory_order_relaxed);
     const std::uint64_t jit_pool_capacity = jit_pool_regions * IOS_JIT_CACHE_SIZE;
-    LOG_INFO("iOS memory snapshot [{}]: footprint={} bytes available={} bytes guest_ram_backing={}{} page_table={} bytes ({}) allocator_table={} bytes (up-front) jit_cache_used=unavailable jit_cache_capacity_per_instance={} bytes jit_pool_regions={} pool_capacity={} bytes shader_cache_bytes=unavailable pipeline_cache_bytes=unavailable gpu_vkutil_buffer_bytes={} gpu_texture_bytes=unavailable gpu_staging_bytes=unavailable (not split from buffer total) page_table_slow_path_time=unavailable cpu_run_time=unavailable",
+
+    // GPU memory stats from Vulkan renderer
+    const auto *vk_state = dynamic_cast<renderer::vulkan::VKState *>(emuenv.renderer.get());
+    const std::uint64_t gpu_buffer_vertex_bytes = vk_state ? vk_state->get_buffer_vertex_bytes() : 0;
+    const std::uint64_t gpu_buffer_index_bytes = vk_state ? vk_state->get_buffer_index_bytes() : 0;
+    const std::uint64_t gpu_buffer_uniform_bytes = vk_state ? vk_state->get_buffer_uniform_bytes() : 0;
+    const std::uint64_t gpu_buffer_staging_bytes = vk_state ? vk_state->get_buffer_staging_bytes() : 0;
+    const std::uint64_t gpu_buffer_other_bytes = vk_state ? vk_state->get_buffer_other_bytes() : 0;
+    const std::uint64_t gpu_buffer_total_bytes = vk_state ? vk_state->get_buffer_total_bytes() : 0;
+    const std::uint64_t gpu_image_count = vk_state ? vk_state->get_image_count() : 0;
+    const std::uint64_t gpu_image_bytes = vk_state ? vk_state->get_image_bytes() : 0;
+    const std::uint64_t gpu_shader_module_source_bytes = vk_state ? vk_state->get_shader_module_source_bytes() : 0;
+    const std::uint64_t gpu_pipeline_cache_payload_bytes = vk_state ? vk_state->get_pipeline_cache_payload_bytes() : 0;
+
+    LOG_INFO("iOS memory snapshot [{}]: footprint={} bytes available={} bytes guest_ram_backing={}{} page_table={} bytes ({}) allocator_table={} bytes (up-front) jit_cache_used={} bytes jit_cache_capacity_per_instance={} bytes jit_pool_regions={} pool_capacity={} bytes live_spirv_payload_bytes={} pipeline_cache_bytes={} gpu_buffer_vertex_bytes={} gpu_buffer_index_bytes={} gpu_buffer_uniform_bytes={} gpu_buffer_staging_bytes={} gpu_buffer_other_bytes={} gpu_buffer_total_bytes={} gpu_image_count={} gpu_image_bytes={} page_table_slow_path_time=unavailable cpu_run_time=unavailable",
         sample, footprint_bytes ? std::to_string(footprint_bytes) : "unavailable",
         available_bytes, guest_backing_measured ? std::to_string(guest_backing_bytes) : "unavailable",
         guest_backing_measured ? " bytes (lazy)" : " (fastmem not tracked)",
         page_table_bytes, page_table_bytes ? "up-front" : "not allocated",
-        allocator_table_bytes, IOS_JIT_CACHE_SIZE, jit_pool_regions, jit_pool_capacity,
-        vkutil::buffer_allocation_bytes());
+        allocator_table_bytes, jit_code_cache_used, IOS_JIT_CACHE_SIZE, jit_pool_regions, jit_pool_capacity,
+        gpu_shader_module_source_bytes, gpu_pipeline_cache_payload_bytes,
+        gpu_buffer_vertex_bytes, gpu_buffer_index_bytes, gpu_buffer_uniform_bytes,
+        gpu_buffer_staging_bytes, gpu_buffer_other_bytes, gpu_buffer_total_bytes,
+        gpu_image_count, gpu_image_bytes);
 }
 
 } // namespace
